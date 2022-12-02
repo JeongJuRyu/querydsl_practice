@@ -1,9 +1,13 @@
 package com.study.querydsl.entity;
 
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.PersistenceUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import static com.querydsl.jpa.JPAExpressions.*;
 import static com.study.querydsl.entity.QMember.*;
 import static com.study.querydsl.entity.QTeam.*;
 import static org.assertj.core.api.Assertions.*;
@@ -45,39 +50,40 @@ public class QuerydslBasicTest {
         em.persist(member3);
         em.persist(member4);
     }
-     @Test
-     public void startJPQL(){
-         Member member = em.createQuery("select m from Member m where m.username = :username", Member.class)
-                 .setParameter("username", "member1")
-                 .getSingleResult();
-
-         assertThat(member.getUsername()).isEqualTo("member1");
-     }
-
-     @Test
-     public void startQuerydsl(){
-         Member findMember = queryFactory
-                 .select(member)
-                 .from(member)
-                 .where(member.username.eq("member1"))
-                 .fetchOne();
-         assertThat(findMember.getUsername()).isEqualTo("member1");
-
-     }
-
-     @Test
-     public void search(){
-         Member findMember = queryFactory
-                 .selectFrom(member)
-                 .where(member.username.eq("member1")
-                         .and(member.age.eq(10)))
-                 .fetchOne();
-        assertThat(findMember.getUsername()).isEqualTo("member1");
-
-     }
 
     @Test
-    public void searchAndParam(){
+    public void startJPQL() {
+        Member member = em.createQuery("select m from Member m where m.username = :username", Member.class)
+                .setParameter("username", "member1")
+                .getSingleResult();
+
+        assertThat(member.getUsername()).isEqualTo("member1");
+    }
+
+    @Test
+    public void startQuerydsl() {
+        Member findMember = queryFactory
+                .select(member)
+                .from(member)
+                .where(member.username.eq("member1"))
+                .fetchOne();
+        assertThat(findMember.getUsername()).isEqualTo("member1");
+
+    }
+
+    @Test
+    public void search() {
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .where(member.username.eq("member1")
+                        .and(member.age.eq(10)))
+                .fetchOne();
+        assertThat(findMember.getUsername()).isEqualTo("member1");
+
+    }
+
+    @Test
+    public void searchAndParam() {
         Member findMember = queryFactory
                 .selectFrom(member)
                 .where( // and를 사용하지 않고 더 가독성있게 보기
@@ -88,7 +94,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    public void resultFetch(){
+    public void resultFetch() {
         List<Member> fetch = queryFactory
                 .selectFrom(member)
                 .fetch();
@@ -109,7 +115,7 @@ public class QuerydslBasicTest {
      * 단, 2에서 회원 이름이 없으면 마지막에 출력(nulls last)
      */
     @Test
-    public void sort(){
+    public void sort() {
         em.persist(new Member(null, 100));
         em.persist(new Member("member5", 100));
         em.persist(new Member("member6", 100));
@@ -129,7 +135,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    public void paging1(){
+    public void paging1() {
         List<Member> members = queryFactory
                 .selectFrom(member)
                 .orderBy(member.username.desc())
@@ -140,7 +146,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    public void aggregation(){
+    public void aggregation() {
         List<Tuple> result = queryFactory
                 .select(member.count(),
                         member.age.sum(),
@@ -158,7 +164,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    public void group() throws Exception{
+    public void group() throws Exception {
         List<Tuple> result = queryFactory
                 .select(team.name, member.age.avg())
                 .from(member)
@@ -176,7 +182,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    public void groupHaving() throws Exception{
+    public void groupHaving() throws Exception {
         List<Tuple> result = queryFactory
                 .select(team.name, member.age.avg())
                 .from(member)
@@ -230,7 +236,7 @@ public class QuerydslBasicTest {
      * JPQL: select m, t from Member m left join m.team t on t.name = 'teamA'
      */
     @Test
-    public void join_on_filtering(){
+    public void join_on_filtering() {
         List<Tuple> result = queryFactory
                 .select(member, team)
                 .from(member)
@@ -239,6 +245,7 @@ public class QuerydslBasicTest {
                 .where(team.name.eq("teamA"))
                 .fetch();
     }
+
     /**
      * 연관관계 없는 엔티티 외부 조인
      * 회원의 이름이 팀 이름과 같은 대상 외부 조인
@@ -254,9 +261,152 @@ public class QuerydslBasicTest {
                 .from(member)
                 .leftJoin(team).on(member.username.eq(team.name))
                 .fetch();
-        for(Tuple tuple : result){
+        for (Tuple tuple : result) {
             System.out.println("tuple = " + tuple);
         }
     }
 
+    @PersistenceUnit
+    EntityManagerFactory emf;
+
+    @Test
+    public void fetchJoinNo() {
+        em.flush();
+        em.clear();
+
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .where(member.username.eq("member1"))
+                .fetchOne();
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 미적용").isFalse();
+    }
+
+    @Test
+    public void fetchJoinYes() {
+        em.flush();
+        em.clear();
+
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .join(member.team, team).fetchJoin()
+                .where(member.username.eq("member1"))
+                .fetchOne();
+        boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 적용").isTrue();
+    }
+
+    /**
+     * 서브 쿼리로 나이가 가장 많은 회원을 조회
+     * 서브쿼리시 JPAExpressions static import함
+     * jpql는 from절의 서브쿼리가 되지 않음
+     */
+    @Test
+    public void subQuery() {
+        // alias가 겹치지 않기 위해 새로운 QMember를 만들어야 함
+        QMember memberSub = new QMember("memberSub");
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.eq(
+                        select(memberSub.age.max())
+                                .from(memberSub)
+                ))
+                .fetch();
+        assertThat(result).extracting("age")
+                .containsExactly(40);
+    }
+
+    /**
+     * 서브 쿼리로 나이가 평균 이상인 회원을 조회
+     */
+    @Test
+    public void subQueryGoe() {
+        // alias가 겹치지 않기 위해 새로운 QMember를 만들어야 함
+        QMember memberSub = new QMember("memberSub");
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.goe(
+                        select(memberSub.age.avg())
+                                .from(memberSub)
+                ))
+                .fetch();
+        assertThat(result).extracting("age")
+                .containsExactly(30, 40);
+    }
+
+    /**
+     * 서브쿼리로 특정 나이에 속하는 회원 조회
+     * 비효율적인 쿼리니 참고만
+     */
+    @Test
+    public void subQueryIn() {
+        // alias가 겹치지 않기 위해 새로운 QMember를 만들어야 함
+        QMember memberSub = new QMember("memberSub");
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.in(
+                        select(memberSub.age)
+                                .from(memberSub)
+                                .where(memberSub.age.gt(10))
+                ))
+                .fetch();
+        assertThat(result).extracting("age")
+                .containsExactly(20, 30, 40);
+    }
+    @Test
+    public void selectSubQuery(){
+        QMember memberSub = new QMember("memberSub");
+
+        List<Tuple> fetch = queryFactory
+                .select(member.username,
+                        select(memberSub.age.avg())
+                                .from(memberSub))
+                .from(member)
+                .fetch();
+        for(Tuple tuple : fetch){
+            System.out.println("tuple = " + tuple);
+        }
+    }
+
+    /**
+     * case문 작성
+     * 다음과 같은 간단한 계산은 DB에서 하지말고 어플리케이션단에서 하는 것을 추천
+     */
+    @Test
+    public void complexCase(){
+        List<String> result = queryFactory
+                .select(new CaseBuilder()
+                        .when(member.age.between(0,20)).then("0~20살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+    }
+
+    /**
+     * 결과값에 문자열 더하기
+     */
+    @Test
+    public void concat(){
+        List<String> result = queryFactory
+                .select(member.username.concat("_").concat(member.age.stringValue()))
+                .from(member)
+                .where(member.username.eq("member1"))
+                .fetch();
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+    
+//    @Test
+//    public void tupleProjection(){
+//        List<Tuple> result = queryFactory
+//                .select(member.username, member.age)
+//                .from(member)
+//                .fetch();
+//    }
+//
+//    @Test
+//    public void findDtoByJPQL(){
+//        em.create
+//    }
 }
