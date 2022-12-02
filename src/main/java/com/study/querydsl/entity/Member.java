@@ -22,6 +22,9 @@ public class Member {
     @JoinColumn(name = "team_id")
     private Team team;
 
+    public Member(String username){
+        this(username, 30);
+    }
     public Member(String username, int age){
         this(username, age, null);
     }
