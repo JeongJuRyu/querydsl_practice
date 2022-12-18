@@ -13,6 +13,7 @@ spring:
         format_sql: true
         show_sql: true
         use_sql_comments: true # jpql? ? ? ??
+    database-platform: org.hibernate.dialect.H2Dialect
 
 logging:
   level:
