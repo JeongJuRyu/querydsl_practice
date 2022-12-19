@@ -13,7 +13,4 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class QuerydslApplicationTests {
 
-    @PersistenceContext
-    EntityManager em;
-
 }
