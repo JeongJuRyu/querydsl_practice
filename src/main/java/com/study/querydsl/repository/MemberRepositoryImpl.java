@@ -1,14 +1,17 @@
 package com.study.querydsl.repository;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.study.querydsl.dto.MemberSearchCondition;
 import com.study.querydsl.dto.MemberTeamDto;
 import com.study.querydsl.dto.QMemberTeamDto;
+import com.study.querydsl.entity.Member;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.support.PageableExecutionUtils;
 
 import java.util.List;
 
@@ -63,7 +66,9 @@ public class MemberRepositoryImpl implements MemberRepositoryCustom{
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
-        long total = queryFactory
+        // 카운드 쿼리 최적화를 위한 코드
+        // fetch를 사용하기 전까지는 실제 쿼리가 DB로 나가지 않는다.
+        JPAQuery<Member> countQuery = queryFactory
                 .select(member)
                 .from(member)
                 .leftJoin(member.team, team)
@@ -72,8 +77,8 @@ public class MemberRepositoryImpl implements MemberRepositoryCustom{
                         teamNameEq(condition.getTeamName()),
                         ageGoe(condition.getAgeGoe()),
                         ageLoe(condition.getAgeLoe())
-                ).fetch().size();
-                return new PageImpl<>(results, pageable, total);
+                );
+        return PageableExecutionUtils.getPage(results, pageable, countQuery.fetch()::size);
     }
 
     @Override
@@ -97,17 +102,17 @@ public class MemberRepositoryImpl implements MemberRepositoryCustom{
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
-        long total = queryFactory
+        JPAQuery<Member> countQuery = queryFactory
                 .select(member)
                 .from(member)
+                .leftJoin(member.team, team)
                 .where(
                         usernameEq(condition.getUsername()),
                         teamNameEq(condition.getTeamName()),
                         ageGoe(condition.getAgeGoe()),
                         ageLoe(condition.getAgeLoe())
-                )
-                .fetch().size();
-        return new PageImpl<>(content, pageable, total);
+                );
+        return PageableExecutionUtils.getPage(content, pageable, () -> countQuery.fetch().size());
     }
 
     private BooleanExpression usernameEq(String username) {
